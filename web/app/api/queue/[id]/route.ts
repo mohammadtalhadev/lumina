@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { queueActionSchema, uuidSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * PATCH /api/queue/[id] — pause (→ cancelled) or retry (→ queued, attempts reset).
@@ -8,6 +9,9 @@ import { queueActionSchema, uuidSchema, parseOrThrow } from '@/lib/validate';
  * dashboard owns these transitions. The worker only ever consumes 'queued'.
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = parseOrThrow(uuidSchema, params.id);

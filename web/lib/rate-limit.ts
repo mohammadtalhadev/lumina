@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * Tiny in-memory rate limiter for /api/* — 60 requests/minute per IP.
  *
- * Why here: one place covering every API route (including the worker proxy),
- * no per-route boilerplate, no new dependencies.
+ * History: this used to live in middleware.ts (one place, Edge runtime).
+ * Vercel "services" mode does NOT support the Edge runtime, so the limiter
+ * moved here and is called as the first line of every API route handler
+ * instead: `const limited = rateLimitGuard(req); if (limited) return limited;`
  *
  * LIMITATION (documented, not hidden): the bucket map lives in this
  * instance's memory. On Vercel each serverless instance has its own buckets,
@@ -34,26 +36,25 @@ function isLimited(ip: string): boolean {
   return b.count > MAX_REQ;
 }
 
-function clientIp(req: NextRequest): string {
+function clientIp(req: Request): string {
   const fwd = req.headers.get('x-forwarded-for');
   if (fwd) {
     const first = fwd.split(',')[0]?.trim();
     if (first) return first;
   }
-  // req.ip is only populated on some runtimes; fall back gracefully.
-  return (req as unknown as { ip?: string }).ip || 'unknown';
+  return 'unknown';
 }
 
-export function middleware(req: NextRequest) {
+/**
+ * Returns a 429 JSON response when the caller's IP exceeded the limit,
+ * or null when the request may proceed. Call FIRST in every /api/* handler.
+ */
+export function rateLimitGuard(req: Request): NextResponse | null {
   if (isLimited(clientIp(req))) {
     return NextResponse.json(
       { error: 'Too many requests. Slow down and try again in a minute.' },
       { status: 429 }
     );
   }
-  return NextResponse.next();
+  return null;
 }
-
-export const config = {
-  matcher: ['/api/:path*'],
-};

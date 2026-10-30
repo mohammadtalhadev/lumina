@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { settingsSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * PATCH /api/settings — update the single brand_config row (id = 1).
@@ -19,6 +20,9 @@ const ALLOWED = [
 ] as const;
 
 export async function PATCH(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

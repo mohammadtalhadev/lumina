@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { workerPathSchema, WORKER_METHODS, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * Worker proxy — the ONLY way the browser reaches the Python worker.
@@ -95,9 +96,18 @@ async function forward(req: NextRequest, segments: string[], method: 'GET' | 'PO
 }
 
 export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   return forward(req, params.path ?? [], 'GET');
 }
 
-export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { path: string[] } }
+) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   return forward(req, params.path ?? [], 'POST');
 }

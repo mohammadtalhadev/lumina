@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { campaignPatchSchema, uuidSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * PATCH /api/campaigns/[id] — activate or pause a campaign.
@@ -8,6 +9,9 @@ import { campaignPatchSchema, uuidSchema, parseOrThrow } from '@/lib/validate';
  * confirm); the API stays honest and simply flips the flag.
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = parseOrThrow(uuidSchema, params.id);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseServer } from '@/lib/supabase-server';
 import { leadImportRowSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * POST /api/leads/import — bulk CSV import.
@@ -19,6 +20,9 @@ const importBodySchema = z.object({
 type InvalidRow = { index: number; email: string; errors: string[] };
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

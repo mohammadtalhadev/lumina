@@ -3,6 +3,7 @@ import { supabaseServer } from '@/lib/supabase-server';
 import { proposalStatusSchema, uuidSchema, parseOrThrow } from '@/lib/validate';
 import { canAdvanceProposal } from '@/lib/model';
 import type { ProposalRow } from '@/lib/model';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * PATCH /api/proposals/[id] — advance a proposal forward only.
@@ -11,6 +12,9 @@ import type { ProposalRow } from '@/lib/model';
  * stale client can never skip draft → accepted.
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = parseOrThrow(uuidSchema, params.id);

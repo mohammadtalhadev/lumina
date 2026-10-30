@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { supabaseServer } from '@/lib/supabase-server';
 import { queueInsertSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * POST /api/queue — enqueue one email (used by the Replies composer "Send").
@@ -12,6 +13,9 @@ import { queueInsertSchema, parseOrThrow } from '@/lib/validate';
  * 'queued' — there is no 'draft' status, and none is invented here.
  */
 export async function POST(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

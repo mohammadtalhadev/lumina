@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { canAdvanceStage, STAGE_ORDER, TERMINAL_STAGES } from '@/lib/model';
 import { leadPatchSchema, parseOrThrow, uuidSchema } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 const KNOWN_STAGES = new Set<string>([...STAGE_ORDER, ...TERMINAL_STAGES]);
 
@@ -12,6 +13,9 @@ const KNOWN_STAGES = new Set<string>([...STAGE_ORDER, ...TERMINAL_STAGES]);
  * Every change is logged to activities.
  */
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = uuidSchema.parse(params.id);

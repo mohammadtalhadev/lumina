@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { noteSchema, parseOrThrow, uuidSchema } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /** POST /api/leads/[id]/notes — append a research note to the timeline. */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = uuidSchema.parse(params.id);

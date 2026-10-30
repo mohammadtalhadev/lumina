@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { callSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 /**
  * POST /api/calls — log a call outcome or schedule a future call.
@@ -9,6 +10,9 @@ import { callSchema, parseOrThrow } from '@/lib/validate';
  * UI parses defensively.
  */
 export async function POST(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();

@@ -7,6 +7,7 @@ import {
   parseOrThrow,
 } from '@/lib/validate';
 import { joinTemplate } from '@/lib/model';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 function dbOr503() {
   try {
@@ -35,6 +36,9 @@ async function readJson(req: NextRequest): Promise<{ ok: true; value: unknown } 
  * One step per (campaign, step_day): the UNIQUE constraint guards it (409).
  */
 export async function POST(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   const parsed = await readJson(req);
   if (!parsed.ok) return parsed.res;
 
@@ -74,6 +78,9 @@ export async function POST(req: NextRequest) {
  * PUT /api/sequences — replace a step (client always sends the full step).
  */
 export async function PUT(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   const parsed = await readJson(req);
   if (!parsed.ok) return parsed.res;
 
@@ -111,6 +118,9 @@ export async function PUT(req: NextRequest) {
  * DELETE /api/sequences?id=<uuid> — remove a step (confirm in the UI first).
  */
 export async function DELETE(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let id: string;
   try {
     id = parseOrThrow(uuidSchema, req.nextUrl.searchParams.get('id'));

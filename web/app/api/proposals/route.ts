@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { proposalSchema, parseOrThrow } from '@/lib/validate';
+import { rateLimitGuard } from '@/lib/rate-limit';
 
 function dbOr503() {
   try {
@@ -22,6 +23,9 @@ function dbOr503() {
  * the audit log (activities) so nothing the operator writes is lost.
  */
 export async function POST(req: NextRequest) {
+  const limited = rateLimitGuard(req);
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await req.json();
