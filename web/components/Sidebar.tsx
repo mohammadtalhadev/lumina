@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -13,10 +14,12 @@ import {
   KanbanSquare,
   MailOpen,
   Megaphone,
+  Menu,
   Plus,
   Send,
   Settings,
   Users,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -41,9 +44,46 @@ const NAV = [
  */
 export default function Sidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
-    <aside className="fixed top-0 left-0 bottom-0 z-40 w-72 my-3 ml-3 flex flex-col p-4 bg-white/60 backdrop-blur-xl border border-white/80 rounded-[20px] shadow-glass select-none">
+    <>
+      {/* Mobile hamburger — floating, doesn't clash with the top bar */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open navigation"
+        className="glass fixed bottom-6 left-6 z-50 grid h-12 w-12 place-items-center rounded-full text-ink shadow-glass lg:hidden"
+      >
+        <Menu className="h-5 w-5" aria-hidden />
+      </button>
+
+      {/* Mobile scrim */}
+      <div
+        aria-hidden
+        onClick={() => setOpen(false)}
+        className={cn(
+          'fixed inset-0 z-40 bg-ink/30 backdrop-blur-sm transition-opacity lg:hidden',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+      />
+
+    <aside
+      className={cn(
+        'fixed top-0 left-0 bottom-0 z-40 w-72 my-3 ml-3 flex flex-col p-4 bg-white/60 backdrop-blur-xl border border-white/80 rounded-[20px] shadow-glass select-none',
+        'transition-transform duration-300 lg:translate-x-0',
+        open ? 'translate-x-0' : 'max-lg:-translate-x-[calc(100%+1rem)]'
+      )}
+    >
+      {/* Mobile close */}
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        aria-label="Close navigation"
+        className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-full text-slate2 hover:bg-ink/5 lg:hidden"
+      >
+        <X className="h-4 w-4" aria-hidden />
+      </button>
       {/* Brand */}
       <div className="flex items-center gap-3 px-3 py-2 mb-4">
         <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-primary via-accent-cyan to-accent-pink text-white shadow-card">
@@ -58,6 +98,7 @@ export default function Sidebar() {
       {/* Primary action: vector plus icon + plain-word label (no "+" character) */}
       <Link
         href="/leads?action=add"
+        onClick={() => setOpen(false)}
         className="mb-5 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent-cyan px-5 py-3 text-sm font-semibold text-white shadow-card transition-transform hover:scale-[1.02] active:scale-[0.98]"
       >
         <Plus className="h-4 w-4" aria-hidden />
@@ -73,6 +114,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setOpen(false)}
               aria-current={active ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors',
@@ -100,5 +142,6 @@ export default function Sidebar() {
         </span>
       </div>
     </aside>
+    </>
   );
 }

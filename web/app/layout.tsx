@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               Skip to main content
             </a>
             <Sidebar />
-            <div className="pl-72">
+            <div className="lg:pl-72">
               <Topbar />
               <main id="main" className="px-6 pb-10">
                 {children}
