@@ -49,16 +49,24 @@ Repo: `mohammadtalhadev/lumina`, branch `main`. Deploy key `lumina-deploy`
 6. Verify: open the URL → sidebar loads → Leads page shows honest empty states
    (not crashes) if the migration hasn't been run yet.
 
-## C. Scheduler — reply polling every 15 min (automatic)
+## C. Scheduler — reply polling every 15 min (user, ~5 min)
 
-Already configured in `vercel.json`:
-```json
-"crons": [{ "path": "/api/cron/poll", "schedule": "*/15 * * * *" }]
-```
-Vercel Cron hits `GET /api/cron/poll`, which forwards to the worker's
-`/workers/poll/run` through the internal binding. The route checks
-`CRON_SECRET`, so random internet traffic can't trigger it. No cron-job.org
-account needed. Check **Vercel → Project → Crons** to see it listed after deploy.
+**Vercel Hobby allows cron jobs only once per day** — our 15-min poll can't run
+on Vercel Cron without a paid plan. So the scheduler is **cron-job.org** (free,
+no card), hitting the web service's public cron route:
+
+1. cron-job.org → free account → **Create cronjob**.
+2. **URL:** `https://<your-vercel-domain>/api/cron/poll`
+   (e.g. `https://lumina.vercel.app/api/cron/poll` — your real domain from step B)
+3. **Method:** GET · **Schedule:** every 15 minutes.
+4. **Headers** (cron-job.org → Advanced → Request headers): add
+   `Authorization: Bearer <your CRON_SECRET>` — the exact value you set in
+   Vercel env vars. Without it the route returns 401.
+5. Save. The route forwards to the worker's `/workers/poll/run` through the
+   internal binding. Poll worker checks inboxes, classifies replies, raises alerts.
+
+Why this still works with an internal worker: `/api/cron/poll` lives on the
+public `web` service; the worker itself stays unreachable from the internet.
 
 ## D. Fallback: worker → Render (only if Vercel services misbehaves)
 
