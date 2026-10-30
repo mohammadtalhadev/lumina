@@ -274,3 +274,121 @@ export function queueTone(status: string) {
 export function rotationWeight(healthScore: number): string {
   return `${Math.max(0, Math.min(100, healthScore) / 100).toFixed(1)}x`;
 }
+
+/* ---------- Phase 1D row types (mirror 0001_lumina_core.sql) ---------- */
+
+export interface HealthDaily {
+  account_id: string;
+  day: string;
+  sent: number;
+  bounces: number;
+  replies: number;
+  spam_complaints: number;
+  health_score: number;
+}
+
+export interface WarmupInbox {
+  id: string;
+  account_id: string;
+  placement_score: number;
+  checked_at: string;
+  sending_accounts?: { email: string; label: string } | null;
+}
+
+export interface ProposalRow {
+  id: string;
+  lead_id: string;
+  amount: string; // numeric arrives as string from supabase-js
+  status: 'draft' | 'sent' | 'accepted' | 'rejected';
+  sent_at: string | null;
+  created_at: string;
+  leads?: { contact_name: string; company: string } | null;
+}
+
+export interface ClientRow {
+  id: string;
+  lead_id: string;
+  advance_paid: boolean;
+  advance_verified_at: string | null;
+  advance_amount: string;
+  remaining_amount: string;
+  payment_method: string;
+  invoice_ref: string;
+  go_live_at: string | null;
+  leads?: { contact_name: string; company: string } | null;
+}
+
+export interface CallRow {
+  id: string;
+  lead_id: string;
+  cal_booking_ref: string;
+  /** Convention: { scheduled_at?: string, notes?: string }. Parsed defensively. */
+  notes_json: unknown;
+  outcome: 'scheduled' | 'done' | 'no_show' | 'cancelled';
+  created_at: string;
+  leads?: { contact_name: string; company: string } | null;
+}
+
+export interface BrandConfigFull extends BrandConfig {
+  linkedin_headline: string;
+  alert_email: string;
+  send_window_tz: string;
+}
+
+/** Forward-only proposal transitions, server-enforced. */
+const PROPOSAL_NEXT: Record<ProposalRow['status'], ProposalRow['status'][]> = {
+  draft: ['sent'],
+  sent: ['accepted', 'rejected'],
+  accepted: [],
+  rejected: [],
+};
+
+export function canAdvanceProposal(from: ProposalRow['status'], to: ProposalRow['status']): boolean {
+  return PROPOSAL_NEXT[from]?.includes(to) ?? false;
+}
+
+export function proposalTone(status: ProposalRow['status']): 'green' | 'amber' | 'red' | 'cyan' | 'grey' {
+  switch (status) {
+    case 'accepted': return 'green';
+    case 'sent': return 'cyan';
+    case 'rejected': return 'red';
+    default: return 'grey';
+  }
+}
+
+export function callOutcomeTone(outcome: CallRow['outcome']): 'green' | 'amber' | 'violet' | 'grey' {
+  switch (outcome) {
+    case 'done': return 'green';
+    case 'no_show': return 'amber';
+    case 'scheduled': return 'violet';
+    default: return 'grey';
+  }
+}
+
+/** Defensive read of the scheduled time stored in calls.notes_json. */
+export function callScheduledAt(notes: unknown): string | null {
+  if (notes && typeof notes === 'object' && !Array.isArray(notes)) {
+    const v = (notes as Record<string, unknown>).scheduled_at;
+    return typeof v === 'string' && v ? v : null;
+  }
+  return null;
+}
+
+export function callNotes(notes: unknown): string {
+  if (notes && typeof notes === 'object' && !Array.isArray(notes)) {
+    const v = (notes as Record<string, unknown>).notes;
+    return typeof v === 'string' ? v : '';
+  }
+  return '';
+}
+
+/** Pre-campaign gate: sending stays blocked until these are real values. */
+export function brandGateStatus(brand: BrandConfigFull | null): { ok: boolean; missing: string[] } {
+  const missing: string[] = [];
+  if (!brand) return { ok: false, missing: ['brand settings'] };
+  const real = (v: string) => v.trim() !== '' && v.trim().toUpperCase() !== 'TBD';
+  if (!real(brand.agency_name)) missing.push('Agency name');
+  if (!real(brand.postal_address)) missing.push('Postal address');
+  if (!real(brand.cal_link)) missing.push('Booking link');
+  return { ok: missing.length === 0, missing };
+}

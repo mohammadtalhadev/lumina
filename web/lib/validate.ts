@@ -147,3 +147,63 @@ export const WORKER_METHODS: Record<WorkerPath, 'GET' | 'POST'> = {
   queue: 'GET',
   alerts: 'GET',
 };
+
+/* ---------- Phase 1D: proposals / calls / settings / kill-switch ---------- */
+
+export const proposalSchema = z.object({
+  lead_id: z.string().uuid('lead_id must be a UUID'),
+  amount: z.coerce.number().min(0, 'Amount cannot be negative').max(100_000_000),
+  notes: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+export type ProposalInput = z.infer<typeof proposalSchema>;
+
+/** Target statuses only — forward-only is enforced server-side against the
+ *  current row, so the client can never skip draft → accepted. */
+export const proposalStatusSchema = z.object({
+  status: z.enum(['sent', 'accepted', 'rejected']),
+});
+
+export type ProposalStatusInput = z.infer<typeof proposalStatusSchema>;
+
+export const callSchema = z.object({
+  lead_id: z.string().uuid('lead_id must be a UUID'),
+  scheduled_at: z.string().trim().min(1, 'Date and time are required').max(40),
+  outcome: z.enum(['scheduled', 'done', 'no_show', 'cancelled']),
+  notes: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+export type CallInput = z.infer<typeof callSchema>;
+
+export const settingsSchema = z
+  .object({
+    agency_name: z.string().trim().max(200).optional(),
+    founder_name: z.string().trim().max(200).optional(),
+    postal_address: z.string().trim().max(500).optional(),
+    cal_link: z.string().trim().max(500).optional(),
+    linkedin_headline: z.string().trim().max(300).optional(),
+    alert_email: z.string().trim().max(320).optional(),
+    send_window_tz: z.string().trim().max(100).optional(),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'Nothing to update',
+  });
+
+export type SettingsInput = z.infer<typeof settingsSchema>;
+
+export const killSwitchSchema = z
+  .object({
+    action: z.enum(['pause', 'resume']),
+    confirm: z.string().optional(),
+  })
+  .refine((v) => v.action !== 'pause' || v.confirm === 'PAUSE', {
+    message: 'Pausing requires typing PAUSE to confirm',
+  });
+
+export type KillSwitchInput = z.infer<typeof killSwitchSchema>;
+
+export const campaignSwitchSchema = z.object({
+  id: z.string().uuid('id must be a UUID'),
+});
+
+export type CampaignSwitchInput = z.infer<typeof campaignSwitchSchema>;

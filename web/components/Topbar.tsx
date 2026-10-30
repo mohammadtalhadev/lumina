@@ -1,10 +1,21 @@
 import { Bell, CircleHelp, Search } from 'lucide-react';
+import { safeQuery } from '@/lib/db';
+import type { Campaign } from '@/lib/model';
+import KillSwitch from '@/components/KillSwitch';
+import CampaignSwitcher from '@/components/CampaignSwitcher';
 
 /**
- * Global top bar: search, notifications, help, operator avatar.
- * Badges show only real numbers — Phase 1A renders none (no fake counts).
+ * Global top bar: campaign switcher, kill-switch, search, notifications,
+ * help, operator avatar. The switcher and kill-switch render only when the
+ * database answers — no fake controls on a dead connection.
  */
-export default function Topbar() {
+export default async function Topbar() {
+  const campaignsRes = await safeQuery<Campaign[]>((db) =>
+    db.from('campaigns').select('id, name, niche, is_active').order('created_at')
+  );
+  const campaigns = campaignsRes.data ?? [];
+  const anyActive = campaigns.some((c) => c.is_active);
+
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 px-6 py-4">
       <div className="glass flex flex-1 items-center gap-2 rounded-full px-4 py-2.5">
@@ -19,6 +30,13 @@ export default function Topbar() {
           /
         </kbd>
       </div>
+
+      {campaignsRes.error === null && (
+        <>
+          <CampaignSwitcher campaigns={campaigns} />
+          <KillSwitch anyActive={anyActive} />
+        </>
+      )}
 
       <button
         type="button"
