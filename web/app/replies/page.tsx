@@ -140,7 +140,12 @@ export default async function RepliesPage({
             {selected ? (
               <GlassCard>
                 <ThreadDetail reply={selected} accountById={accountById} />
-                <ReplyComposer replyId={selected.id} leadName={selected.leads?.contact_name ?? 'them'} />
+                <ReplyComposer
+                  replyId={selected.id}
+                  leadName={selected.leads?.contact_name ?? 'them'}
+                  leadId={selected.lead_id}
+                  accountId={selected.reply_from_account_id}
+                />
               </GlassCard>
             ) : (
               <GlassCard>

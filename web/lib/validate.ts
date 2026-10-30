@@ -67,3 +67,83 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   }
   return result.data;
 }
+
+/* ---------- Phase 1C: sequences ---------- */
+
+export const sequenceStepSchema = z.object({
+  campaign_id: z.string().uuid('campaign_id must be a UUID'),
+  step_day: z.number().int().min(0, 'Day must be 0 or more').max(60, 'Day must be 60 or less'),
+  subject: z.string().trim().max(200, 'Subject is too long').optional().or(z.literal('')),
+  body: z.string().trim().min(1, 'Email body is required').max(20000, 'Body is too long'),
+});
+
+export type SequenceStepInput = z.infer<typeof sequenceStepSchema>;
+
+/** Full replacement on edit (client always sends the complete step). */
+export const sequenceStepPutSchema = z.object({
+  id: z.string().uuid('id must be a UUID'),
+  step_day: z.number().int().min(0).max(60),
+  subject: z.string().trim().max(200).optional().or(z.literal('')),
+  body: z.string().trim().min(1, 'Email body is required').max(20000),
+});
+
+export type SequenceStepPutInput = z.infer<typeof sequenceStepPutSchema>;
+
+/* ---------- Phase 1C: send queue ---------- */
+
+/** Replies composer → queue insert. status is ALWAYS 'queued' (the only
+ *  waiting state the migration's CHECK constraint allows — no 'draft'). */
+export const queueInsertSchema = z.object({
+  lead_id: z.string().uuid('lead_id must be a UUID'),
+  account_id: z.string().uuid('account_id must be a UUID').nullable().optional(),
+  subject: z.string().trim().max(200, 'Subject is too long').optional().or(z.literal('')),
+  body: z.string().trim().min(1, 'Reply body is required').max(20000, 'Body is too long'),
+});
+
+export type QueueInsertInput = z.infer<typeof queueInsertSchema>;
+
+export const queueActionSchema = z.object({
+  action: z.enum(['pause', 'retry'], { message: "action must be 'pause' or 'retry'" }),
+});
+
+export type QueueActionInput = z.infer<typeof queueActionSchema>;
+
+/* ---------- Phase 1C: campaigns ---------- */
+
+export const campaignCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Campaign name is required').max(200),
+  niche: z.string().trim().min(1, 'Niche is required').max(60),
+  /** niche key of the campaign_templates preset to start from (optional) */
+  preset_niche: z.string().trim().max(60).optional().or(z.literal('')),
+  /** existing campaign id to clone (optional; wins over preset when both given) */
+  clone_from: z.string().uuid('clone_from must be a UUID').optional().or(z.literal('')),
+});
+
+export type CampaignCreateInput = z.infer<typeof campaignCreateSchema>;
+
+export const campaignPatchSchema = z.object({
+  is_active: z.boolean(),
+});
+
+export type CampaignPatchInput = z.infer<typeof campaignPatchSchema>;
+
+/* ---------- Phase 1C: worker proxy ---------- */
+
+/** Exact upstream paths the dashboard may call. Nothing else is forwarded. */
+export const workerPathSchema = z.enum([
+  'workers/send/run',
+  'workers/poll/run',
+  'workers/health/run',
+  'queue',
+  'alerts',
+]);
+
+export type WorkerPath = z.infer<typeof workerPathSchema>;
+
+export const WORKER_METHODS: Record<WorkerPath, 'GET' | 'POST'> = {
+  'workers/send/run': 'POST',
+  'workers/poll/run': 'POST',
+  'workers/health/run': 'POST',
+  queue: 'GET',
+  alerts: 'GET',
+};
