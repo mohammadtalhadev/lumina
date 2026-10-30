@@ -92,13 +92,14 @@ export function StatCard({
   label,
   value,
   sub,
-  icon: Icon,
+  icon,
   delay = 0,
 }: {
   label: string;
   value: string | null;
   sub?: string;
-  icon: LucideIcon;
+  /** Rendered element (e.g. <MailCheck />) — never a component function (RSC boundary). */
+  icon: ReactNode;
   delay?: number;
 }) {
   return (
@@ -107,7 +108,7 @@ export function StatCard({
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-medium text-slate2">{label}</p>
           <span className="grid h-9 w-9 place-items-center rounded-2xl bg-primary-soft text-primary-dark">
-            <Icon className="h-4 w-4" aria-hidden />
+            {icon}
           </span>
         </div>
         {value === null ? (
@@ -123,12 +124,13 @@ export function StatCard({
 
 /* ---------- Honest empty state ---------- */
 export function EmptyState({
-  icon: Icon = Inbox,
+  icon,
   title,
   detail,
   action,
 }: {
-  icon?: LucideIcon;
+  /** Rendered element — never a component function (RSC boundary). */
+  icon?: ReactNode;
   title: string;
   detail?: string;
   action?: ReactNode;
@@ -136,7 +138,7 @@ export function EmptyState({
   return (
     <div className="glass flex flex-col items-center rounded-3xl px-6 py-12 text-center">
       <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary-soft text-primary-dark">
-        <Icon className="h-6 w-6" aria-hidden />
+        {icon ?? <Inbox className="h-6 w-6" aria-hidden />}
       </span>
       <h3 className="mt-4 font-display text-lg font-semibold">{title}</h3>
       {detail && <p className="mt-1 max-w-md text-sm text-slate2">{detail}</p>}

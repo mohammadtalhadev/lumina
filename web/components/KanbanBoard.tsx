@@ -208,7 +208,7 @@ export default function KanbanBoard({
       {/* Board: horizontal scroll, cards never sliced mid-card */}
       {leads.length === 0 ? (
         <EmptyState
-          icon={Users}
+          icon={<Users className="h-6 w-6" aria-hidden />}
           title="No leads yet"
           detail="Add your first lead to start the pipeline. Research done today feeds tomorrow's sends."
           action={

@@ -93,7 +93,7 @@ export default async function RepliesPage({
 
       {replies.length === 0 ? (
         <EmptyState
-          icon={MailOpen}
+          icon={<MailOpen className="h-6 w-6" aria-hidden />}
           title={tab.key === 'all' ? 'No replies yet' : `No ${tab.label.toLowerCase()} replies`}
           detail="First replies land here once outreach starts. Polling runs every 15 minutes per account."
         />

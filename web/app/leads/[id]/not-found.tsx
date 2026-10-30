@@ -6,7 +6,7 @@ import { EmptyState, PrimaryButton } from '@/components/ui';
 export default function LeadNotFound() {
   return (
     <EmptyState
-      icon={UserX}
+      icon={<UserX className="h-6 w-6" aria-hidden />}
       title="Lead not found"
       detail="This lead doesn't exist or was deleted. Check the Kanban board for the current list."
       action={

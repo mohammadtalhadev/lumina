@@ -147,14 +147,14 @@ export default async function HomePage() {
 
       {/* KPI row */}
       <section aria-label="Key metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Emails sent today" value={sent.data === null ? null : String(sent.data)} icon={MailCheck} delay={0} />
-        <StatCard label="Replies received" value={replies.data === null ? null : String(replies.data)} icon={MailOpen} delay={0.05} />
-        <StatCard label="Positive replies" value={positives.data === null ? null : String(positives.data)} icon={ThumbsUp} delay={0.1} />
+        <StatCard label="Emails sent today" value={sent.data === null ? null : String(sent.data)} icon={<MailCheck className="h-4 w-4" aria-hidden />} delay={0} />
+        <StatCard label="Replies received" value={replies.data === null ? null : String(replies.data)} icon={<MailOpen className="h-4 w-4" aria-hidden />} delay={0.05} />
+        <StatCard label="Positive replies" value={positives.data === null ? null : String(positives.data)} icon={<ThumbsUp className="h-4 w-4" aria-hidden />} delay={0.1} />
         <StatCard
           label="Avg account health"
           value={avgHealth === null ? null : `${avgHealth}`}
           sub={accounts.data ? `${accounts.data.length} account${accounts.data.length === 1 ? '' : 's'}` : undefined}
-          icon={HeartPulse}
+          icon={<HeartPulse className="h-4 w-4" aria-hidden />}
           delay={0.15}
         />
       </section>
@@ -216,7 +216,7 @@ export default async function HomePage() {
             ) : !alerts.data || alerts.data.length === 0 ? (
               <div className="mt-4">
                 <EmptyState
-                  icon={Bell}
+                  icon={<Bell className="h-6 w-6" aria-hidden />}
                   title="No alerts yet"
                   detail="Replies, warnings, and health events will appear here once the system is running."
                 />
