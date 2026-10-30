@@ -1,82 +1,80 @@
 # Lumina — Deploy Guide
 
 **Do NOT deploy from this VM without the account owner.** Every step below that
-touches an account (GitHub, Vercel, Render, cron-job.org) is the user's action.
-This doc is the exact click path.
+touches an account (GitHub, Vercel) is the user's action. This doc is the exact
+click path.
 
-Architecture recap: **Next.js dashboard → Vercel** · **Python worker → Render**
-(Vercel cannot run long-lived Python processes) · **Postgres/Auth → Supabase**
-(already live). Dashboard and worker stay in sync through Supabase.
+Architecture recap: **one Vercel project, two services** (`vercel.json` at repo
+root) — **web** (Next.js dashboard, public) + **worker** (FastAPI, internal
+only, reached via the `WORKER_URL` service binding) · **Postgres/Auth → Supabase**
+(already live). Dashboard and worker stay in sync through Supabase. A Vercel
+Cron hits `/api/cron/poll` every 15 min — no external scheduler needed.
+
+Why Vercel services (senior call, 2026-10-31): one platform instead of two,
+no 15-min sleep like Render free, faster cold starts. Trade-off: Hobby
+serverless timeout is 60s — `max_sends_per_run` is set to **10** so every run
+finishes with margin (Launch mode needs ~5/day anyway; the rest drains on later
+runs, idempotently). Render remains a documented fallback (section D).
 
 ---
 
-## A. Push the repo to GitHub (user, ~5 min)
+## A. Push the repo to GitHub (user, ~5 min) — DONE 2026-10-30
 
-1. On github.com, create an **empty** repo named `lumina` (no README, no license).
-2. Tell the assistant "repo ready" — it will attach a deploy key and push:
-   ```bash
-   git remote add origin git@github.com:mohammadtalhadev/lumina.git
-   git push -u origin main   # or master, matching local branch
-   ```
-3. After every phase, pushes continue the same way (`git push`).
+Repo: `mohammadtalhadev/lumina`, branch `main`. Deploy key `lumina-deploy`
+(write access) is attached. Pushes continue with `git push`.
 
-## B. Dashboard → Vercel (user, ~10 min)
+## B. Import to Vercel (user, ~10 min)
 
 1. vercel.com → **Add New → Project** → import `mohammadtalhadev/lumina`.
-2. **Root Directory:** `web` (the repo root is NOT the app — set this!).
-3. **Framework Preset:** Next.js (auto-detected).
-4. **Environment Variables** (all four; copy from your own `.env.local` — never from chat):
-   | Variable | Value |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same page → `anon` `public` key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Same page → `service_role` key (**secret** — server only) |
-   | `WORKER_URL` | Render worker URL from step C (e.g. `https://lumina-worker.onrender.com`). Leave empty until then — the dashboard shows honest "worker not configured" states. |
-5. **Deploy.** First build takes ~2 min.
+2. **Root Directory:** leave as repo root (`.`). Do NOT set `web` — `vercel.json`
+   at the root declares both services.
+3. Vercel auto-detects the services (`web` = Next.js, `worker` = FastAPI).
+4. **Environment Variables** — set these as **shared** (all services):
+   | Variable | Value | Used by |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL | web |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same page → `anon` `public` key | web |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Same page → `service_role` key (**secret** — server only) | web |
+   | `SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` | worker |
+   | `SUPABASE_SERVICE_KEY` | Same `service_role` key (**secret**) | worker |
+   | `GRAPH_TOKEN_ACC1` | Outlook OAuth access token (Phase 0 checklist) | worker |
+   | `ALERT_EMAIL` | Your own email for alerts | worker |
+   | `CRON_SECRET` | Any long random string (e.g. `openssl rand -hex 32`) | web (cron auth) |
+   
+   ⚠️ Do NOT set `WORKER_URL` yourself — the service **binding** injects it into
+   `web` automatically. Setting it manually would override the binding.
+   
+   Copy values from your own `.env` files — never from chat.
+5. **Deploy.** First build takes ~2–3 min (builds both services).
 6. Verify: open the URL → sidebar loads → Leads page shows honest empty states
    (not crashes) if the migration hasn't been run yet.
 
-## C. Worker → Render (user, ~10 min)
+## C. Scheduler — reply polling every 15 min (automatic)
 
-Option 1 — Blueprint (fastest): Render → **New → Blueprint** → point at the repo.
-`worker/render.yaml` in this repo defines the service (root `worker/`,
-`pip install -r requirements.txt`, `uvicorn app.main:app --host 0.0.0.0 --port $PORT`).
+Already configured in `vercel.json`:
+```json
+"crons": [{ "path": "/api/cron/poll", "schedule": "*/15 * * * *" }]
+```
+Vercel Cron hits `GET /api/cron/poll`, which forwards to the worker's
+`/workers/poll/run` through the internal binding. The route checks
+`CRON_SECRET`, so random internet traffic can't trigger it. No cron-job.org
+account needed. Check **Vercel → Project → Crons** to see it listed after deploy.
 
-Option 2 — Manual: Render → **New → Web Service** → repo `lumina`:
-- **Root Directory:** `worker`
-- **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- **Plan:** Free
+## D. Fallback: worker → Render (only if Vercel services misbehaves)
 
-**Environment variables** (Render dashboard → Environment):
-| Variable | Value |
-|---|---|
-| `SUPABASE_URL` | Same Supabase project URL as above |
-| `SUPABASE_SERVICE_KEY` | `service_role` key (**secret**) |
-| `GRAPH_TOKEN_ACC1` | Outlook OAuth access token (Phase 0 checklist) |
-| `ALERT_EMAIL` | Your own email for alerts |
-
-Free-tier note: Render sleeps the service when idle (~15 min). The cron below
-wakes it; first request after sleep takes ~30–60s (cold start). Acceptable for
-a 15-minute poll loop.
-
-## D. Scheduler — reply polling every 15 min (user, ~5 min)
-
-The worker does not run on a timer by itself. Use **cron-job.org** (free):
-
-1. Create account → **Create cronjob**.
-2. **URL:** `https://<your-render-url>/workers/poll/run`
-3. **Method:** POST · **Schedule:** every 15 minutes.
-4. Save. The poll worker checks inboxes, classifies replies, and raises alerts.
-
-(Alternative: Vercel Cron hitting the same worker URL — same effect, one less
-account. cron-job.org is documented because it's free with no card.)
+If the FastAPI service gives trouble on Vercel, the Render path still works:
+Render → **New → Blueprint** → repo (uses `worker/render.yaml`), set the four
+worker env vars, then set `WORKER_URL` manually in Vercel env to the Render URL
+(this overrides the binding) and disable the Vercel cron in favor of
+cron-job.org → `POST https://<render-url>/workers/poll/run` every 15 min.
+Free-tier note: Render sleeps when idle (~15 min); first request after sleep
+takes ~30–60s. Acceptable for a 15-minute loop.
 
 ## E. Phase 0 proof loop (user + assistant)
 
 Follow `docs/PHASE_0_CHECKLIST.md`:
 1. Run migration `0001_lumina_core.sql` in Supabase SQL Editor → verify counts **1, 5, 19**.
-2. Azure app + OAuth token → Render env (`GRAPH_TOKEN_ACC1`).
+2. Azure app + OAuth token → Vercel env (`GRAPH_TOKEN_ACC1`), redeploy.
 3. Dashboard: add 1 test lead (your second email) → assistant triggers send worker.
 4. Reply to the test email → cron picks it up within 15 min → reply appears in
    `/replies` + alert email arrives.
@@ -88,7 +86,7 @@ Launch mode (5 leads/day, first 100 emails human-approved) can begin.
 
 ## Rollback
 
-- **Vercel:** Deployments tab → previous deployment → **Promote to Production**.
-- **Render:** manual deploy of any prior commit from the dashboard.
+- **Vercel:** Deployments tab → previous deployment → **Promote to Production**
+  (rolls back both services together).
 - **Database:** migration `0001` is idempotent and additive — no destructive
   rollback needed. (Future migrations must ship with their own down-scripts.)

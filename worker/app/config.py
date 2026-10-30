@@ -24,7 +24,10 @@ class Settings(BaseSettings):
 
     # Safety: ek run me max kitne emails bhej sakta hai worker
     # (galti se poori queue khaali na ho jaye)
-    max_sends_per_run: int = 25
+    # Vercel Hobby par serverless timeout 60s hai — 10 sends (~20-30s + cold
+    # start) har run ko safe margin me rakhta hai. Baqi queue agli run me
+    # drain hoti hai (idempotent — double-send ka khatra nahi).
+    max_sends_per_run: int = 10
 
     # Retry: fail hone par kitni dafa dobara try kare, kitne gap par (minutes)
     max_attempts: int = 3
