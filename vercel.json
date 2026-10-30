@@ -1,0 +1,1 @@
+{"$schema":"https://openapi.vercel.sh/vercel.json","crons":[{"path":"/api/cron/poll","schedule":"*/15 * * * *"}],"rewrites":[{"destination":{"service":"web"},"source":"/(.*)"}],"services":{"web":{"bindings":[{"env":"WORKER_URL","format":"url","service":"worker","type":"service"}],"framework":"nextjs","root":"web"},"worker":{"framework":"fastapi","root":"worker"}}}
