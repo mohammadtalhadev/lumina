@@ -15,6 +15,13 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
           },
+          // HSTS: safe because Vercel serves HTTPS only. If this app is ever
+          // served over plain HTTP (local dev excluded — header only matters
+          // in production), remove this line.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
         ],
       },
     ];

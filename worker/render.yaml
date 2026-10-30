@@ -1,0 +1,21 @@
+# Render blueprint for the Lumina Python worker.
+# Render → New → Blueprint → point at the repo. Secrets are entered in the
+# Render dashboard (sync: false) — never in this file.
+services:
+  - type: web
+    name: lumina-worker
+    runtime: python
+    rootDir: worker
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: GRAPH_TOKEN_ACC1
+        sync: false
+      - key: ALERT_EMAIL
+        sync: false

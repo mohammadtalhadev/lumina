@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BadgeCheck, Plus, Users, X } from 'lucide-react';
-import { KANBAN_STAGES, OUTCOME_STAGES, type Campaign, type Lead } from '@/lib/model';
+import { BadgeCheck, Plus, Upload, Users, X } from 'lucide-react';
+import { KANBAN_STAGES, OUTCOME_STAGES, canAdvanceStage, type Campaign, type Lead } from '@/lib/model';
 import { leadFormSchema } from '@/lib/validate';
+import CsvImportModal from '@/components/CsvImportModal';
 import { EmptyState, Field, GhostButton, Pill, PrimaryButton, gradeTone, inputCls } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
@@ -14,11 +15,24 @@ function daysInStage(updatedAt: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000));
 }
 
-function LeadCard({ lead }: { lead: Lead }) {
+function LeadCard({
+  lead,
+  draggable,
+  onDragStart,
+  onDragEnd,
+}: {
+  lead: Lead;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+}) {
   return (
     <Link
       href={`/leads/${lead.id}`}
-      className="block rounded-2xl border border-white/70 bg-white/70 p-4 backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-card"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="block cursor-grab rounded-2xl border border-white/70 bg-white/70 p-4 backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-card active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="font-display text-sm font-semibold leading-snug">{lead.company || 'Untitled company'}</p>
@@ -66,6 +80,15 @@ export default function KanbanBoard({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [duplicateLeadId, setDuplicateLeadId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
+  // Drag-and-drop state (native HTML5 DnD — no extra library).
+  // Touch devices don't do HTML5 DnD: the lead detail page's advance-stage
+  // button remains the fallback there.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropStage, setDropStage] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
 
   // ?action=add (sidebar button) opens the modal on load.
   useEffect(() => {
@@ -153,6 +176,41 @@ export default function KanbanBoard({
     }
   }
 
+  const dragLead = dragId ? leads.find((l) => l.id === dragId) ?? null : null;
+
+  async function dropOnStage(stage: string) {
+    if (!dragId || moving) return;
+    const lead = leads.find((l) => l.id === dragId);
+    setDragId(null);
+    setDropStage(null);
+    if (!lead || lead.stage === stage) return;
+    // Client-side pre-check for instant feedback; the server re-enforces it.
+    if (!canAdvanceStage(lead.stage, stage)) {
+      setDropError(
+        `Stages only move forward — can't move "${lead.company || 'this lead'}" from ${lead.stage} to ${stage}.`
+      );
+      return;
+    }
+    setMoving(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDropError(json.error ?? 'Could not move the lead. Try again.');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setDropError('Network error. Check your connection and try again.');
+    } finally {
+      setMoving(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* Header + filters */}
@@ -163,10 +221,16 @@ export default function KanbanBoard({
             {filtered.length} of {leads.length} leads · stages move forward only
           </p>
         </div>
-        <PrimaryButton onClick={() => setModalOpen(true)}>
-          <Plus className="h-4 w-4" aria-hidden />
-          Add lead
-        </PrimaryButton>
+        <div className="flex items-center gap-2">
+          <GhostButton onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" aria-hidden />
+            Import CSV
+          </GhostButton>
+          <PrimaryButton onClick={() => setModalOpen(true)}>
+            <Plus className="h-4 w-4" aria-hidden />
+            Add lead
+          </PrimaryButton>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filters">
@@ -226,6 +290,9 @@ export default function KanbanBoard({
         >
           {KANBAN_STAGES.map((stage, i) => {
             const cards = byStage.get(stage) ?? [];
+            // Highlight only legal drop targets while dragging (forward-only machine).
+            const canDropHere = dragLead ? canAdvanceStage(dragLead.stage, stage) : false;
+            const isOver = dropStage === stage && dragId !== null;
             return (
               <motion.section
                 key={stage}
@@ -234,7 +301,26 @@ export default function KanbanBoard({
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: Math.min(i * 0.05, 0.3), ease: 'easeOut' }}
-                className="w-[300px] shrink-0 snap-start rounded-3xl border border-white/70 bg-white/40 p-3 backdrop-blur-xl"
+                onDragOver={(e) => {
+                  if (dragId) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = canDropHere ? 'move' : 'none';
+                    setDropStage(stage);
+                  }
+                }}
+                onDragLeave={() => setDropStage((s) => (s === stage ? null : s))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  dropOnStage(stage);
+                }}
+                className={cn(
+                  'w-[300px] shrink-0 snap-start rounded-3xl border p-3 backdrop-blur-xl transition-colors',
+                  isOver && canDropHere
+                    ? 'border-primary/60 bg-primary/10'
+                    : isOver
+                      ? 'border-red-300/70 bg-red-50/60'
+                      : 'border-white/70 bg-white/40'
+                )}
               >
                 <header className="flex items-center justify-between px-2 pb-3 pt-1">
                   <h2 className="font-display text-sm font-semibold">{stage}</h2>
@@ -243,10 +329,26 @@ export default function KanbanBoard({
                 <div className="max-h-[60vh] space-y-2.5 overflow-y-auto pr-0.5">
                   {cards.length === 0 ? (
                     <p className="rounded-2xl border border-dashed border-ink/15 px-3 py-6 text-center text-xs text-slate2">
-                      No leads here yet
+                      {isOver ? 'Drop here' : 'No leads here yet'}
                     </p>
                   ) : (
-                    cards.map((l) => <LeadCard key={l.id} lead={l} />)
+                    cards.map((l) => (
+                      <LeadCard
+                        key={l.id}
+                        lead={l}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', l.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDragId(l.id);
+                          setDropError(null);
+                        }}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDropStage(null);
+                        }}
+                      />
+                    ))
                   )}
                 </div>
               </motion.section>
@@ -388,6 +490,38 @@ export default function KanbanBoard({
                 </p>
               </form>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CSV import modal */}
+      <CsvImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onDone={() => router.refresh()}
+      />
+
+      {/* Honest toast for rejected drops (e.g. backward stage moves) */}
+      <AnimatePresence>
+        {dropError && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+            role="alert"
+          >
+            <div className="flex max-w-md items-center gap-3 rounded-2xl border border-red-200 bg-white/95 px-4 py-3 shadow-card backdrop-blur-xl">
+              <p className="text-sm font-medium text-red-700">{dropError}</p>
+              <button
+                type="button"
+                onClick={() => setDropError(null)}
+                aria-label="Dismiss"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate2 hover:bg-ink/5"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

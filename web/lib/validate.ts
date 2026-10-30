@@ -49,6 +49,23 @@ export type LeadPatchInput = z.infer<typeof leadPatchSchema>;
 
 export const uuidSchema = z.string().uuid();
 
+/** One row of a CSV lead import. Niche is free text (mapped to campaigns later, if at all). */
+export const leadImportRowSchema = z.object({
+  company: z.string().trim().min(1, 'Company is required').max(200),
+  contact_name: z.string().trim().min(1, 'Contact name is required').max(200),
+  email: z.string().trim().email('Valid email is required').max(320),
+  niche: z.string().trim().max(60).optional().or(z.literal('')),
+});
+
+export type LeadImportRow = z.infer<typeof leadImportRowSchema>;
+
+/** Bulk import payload: hard cap of 500 rows per import. */
+export const leadImportSchema = z.object({
+  rows: z.array(leadImportRowSchema).min(1, 'No rows to import').max(500, 'Max 500 rows per import'),
+});
+
+export type LeadImportInput = z.infer<typeof leadImportSchema>;
+
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
