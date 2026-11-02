@@ -19,12 +19,12 @@ khud batata hai. AutoMailer free me webhook nahi deta, isi liye polling.
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 
 from ..db import SupabaseDB
 from ..services.graph import GraphClient, GraphError
 from ..services.notify import raise_alert
+from ..services.tokens import get_account_token
 
 # Simple keyword classifier (scaffold). Baad me Gemini/Groq se behtar hoga.
 POSITIVE_WORDS = ["interested", "call", "pricing", "quote", "demo",
@@ -72,7 +72,7 @@ def poll_account(db: SupabaseDB, account: dict,
                  now: datetime | None = None) -> dict:
     """Ek account ka inbox check karo. Returns {"checked": n, "replies": n}."""
     now = now or datetime.now(timezone.utc)
-    token = os.environ.get(account.get("token_ref") or "")
+    token = get_account_token(db, account)
     if not token:
         return {"checked": 0, "replies": 0, "error": "token missing"}
 

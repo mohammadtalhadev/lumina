@@ -23,7 +23,6 @@ kaam worker background me karta hai.
 """
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta, timezone
 
 from ..config import settings
@@ -32,16 +31,15 @@ from ..models import Account, Lead, QueueItem
 from ..services import rotation, spamcheck
 from ..services.graph import GraphClient, GraphError
 from ..services.notify import raise_alert
+from ..services.tokens import get_account_token
 
 
-def _account_token(account: dict) -> str | None:
+def _account_token(db: SupabaseDB, account: dict) -> str | None:
     """
-    Account ka Graph token lao.
-    Scaffold me: token_ref ek ENV VAR ka naam hai.
-    Production me: ye Supabase Vault ka reference hoga.
+    Account ka usable token lao — DB OAuth (auto-refresh) pehle,
+    legacy token_ref env var fallback. Purana signature db leta hai ab.
     """
-    ref = account.get("token_ref") or ""
-    return os.environ.get(ref) if ref else None
+    return get_account_token(db, account)
 
 
 def _due_items(db: SupabaseDB, now: datetime, limit: int) -> list[dict]:
@@ -135,7 +133,7 @@ def run_once(db: SupabaseDB, now: datetime | None = None) -> dict:
             continue
 
         # (e) Graph se bhejo
-        token = _account_token(account.model_dump())
+        token = _account_token(db, account.model_dump())
         try:
             if not token:
                 raise GraphError("token missing — account dobara connect karo")

@@ -51,7 +51,11 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
-export default async function AccountsPage() {
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams?: { connected?: string; error?: string };
+}) {
   const res = await safeQuery<AccountFull[]>((db) =>
     db.from('sending_accounts').select(ACCOUNT_COLS).order('created_at')
   );
@@ -70,6 +74,17 @@ export default async function AccountsPage() {
 
   return (
     <div className="space-y-5">
+      {searchParams?.connected && (
+        <div className="rounded-3xl border border-emerald-200/70 bg-emerald-50/70 p-4 text-sm text-emerald-900">
+          <strong>Account connected.</strong> It starts in Warming — campaign volume
+          unlocks after the 85%+ placement gate. Tokens refresh automatically.
+        </div>
+      )}
+      {searchParams?.error && (
+        <div className="rounded-3xl border border-red-200/70 bg-red-50/70 p-4 text-sm text-red-900">
+          <strong>Connection failed:</strong> {searchParams.error}
+        </div>
+      )}
       <FadeIn>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

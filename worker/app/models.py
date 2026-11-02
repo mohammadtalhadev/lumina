@@ -29,6 +29,12 @@ class Account(BaseModel):
     last_sent_at: datetime | None = None
     health_score: int = 100
     paused_reason: str = ""
+    # OAuth tokens (dashboard "Connect with Microsoft" flow, migration 0002).
+    # Empty = account uses legacy token_ref env var instead.
+    oauth_access_token: str = ""
+    oauth_refresh_token: str = ""
+    oauth_expires_at: datetime | None = None
+    oauth_scope: str = ""
 
 
 class QueueItem(BaseModel):
